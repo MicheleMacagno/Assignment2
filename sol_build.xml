@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project basedir="." default="generate-artifacts" name="NFFG-2_BUILD">
+	<import file="build.xml" />
+	
+	<description>
+			Script for NFFG Assignment 2 - For automatic classes generation
+	</description>
+	
+	<property name="root.location" location="." />
+	
+	<!-- define wjc task (WADL to Java) -->
+	<taskdef name="wjc" classname="org.jvnet.ws.wadl2java.WJCTask">
+	   <classpath>
+	   	<fileset dir="${lib.dir}" includes="*.jar" />
+	   </classpath>
+	</taskdef>
+	
+	<target name="generate-artifacts">
+		<mkdir dir="${gen.dir}"/>
+		<echo message="I'm generating the artifacts" />
+		
+		<wjc description="${WADL}" package="it.polito.dp2.NFFG.sol2"
+	       autoSchemaPackage="false" target="${gen.dir}">
+	     <customizations dir="${lab2.location}" includes="binding.xjc"/>
+	     <produces dir="${gen.dir}/it/polito/dp2/NFFG/sol2" includes="*.java"/>
+	     <depends dir="${root.location}" includes="build.xml"/>
+	    </wjc>
+	</target>
+	
+</project>
