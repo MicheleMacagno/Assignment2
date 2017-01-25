@@ -43,6 +43,12 @@ public class ConcreteReachabilityTester implements ReachabilityTester {
 			try{
 				baseServiceUrl = System.getProperty("it.polito.dp2.NFFG.lab2.URL");
 				
+				//Eventually remove last / from the name for compliance with future methods
+				if(baseServiceUrl.lastIndexOf("/") == baseServiceUrl.length()-1){
+					baseServiceUrl = baseServiceUrl.substring(0, baseServiceUrl.length()-1);
+				}
+				
+				
 				factory = it.polito.dp2.NFFG.NffgVerifierFactory.newInstance();
 				monitor = factory.newNffgVerifier();
 				setNffg = monitor.getNffgs();
@@ -62,7 +68,15 @@ public class ConcreteReachabilityTester implements ReachabilityTester {
 			}
 			
 	}
-	
+	/*
+	 * NOTE: graphName = name just after having removed all Nodes from Neo4j.
+	 * This is because in case of ServiceException there is the possibility that 
+	 * some things have been uploaded and other not.
+	 * From documentation it seems to be necessary to provide a not null name of graphName
+	 * even if something was wrong.
+	 * (non-Javadoc)
+	 * @see it.polito.dp2.NFFG.lab2.ReachabilityTester#loadNFFG(java.lang.String)
+	 */
 	@Override
 	public void loadNFFG(String name) throws UnknownNameException, ServiceException {
 		
@@ -80,7 +94,6 @@ public class ConcreteReachabilityTester implements ReachabilityTester {
 			}else{
 				
 				//DELETION of all nodes and relative links
-				graphName=name;
 				try{
 					String resourceName = baseServiceUrl + "/resource/nodes"; 
 					client.target(resourceName)
@@ -95,8 +108,15 @@ public class ConcreteReachabilityTester implements ReachabilityTester {
 					e.printStackTrace();
 					throw new ServiceException(e);
 				}
+				
+				graphName=name;
 				currentNffg = elements.get(0);
-				extractInformationOfNffgForDB(currentNffg);
+				try{
+					extractInformationOfNffgForDB(currentNffg);
+				}catch(ServiceException e){
+					System.out.println("Error in comunicating with Neo4J");
+					throw new ServiceException(e);
+				}
 			}
 		
 	}
@@ -127,30 +147,32 @@ public class ConcreteReachabilityTester implements ReachabilityTester {
 			try{
 					String resourceName = baseServiceUrl + "/resource/node/" + srcID;
 					client.target(resourceName)
-						.request(MediaType.APPLICATION_XML)
+						.request()
 						.accept(MediaType.APPLICATION_XML)
 						.get(Node.class);
 					
 					resourceName = baseServiceUrl + "/resource/node/" + dstID;
 					client.target(resourceName)
-						.request(MediaType.APPLICATION_XML)
+						.request()
 						.accept(MediaType.APPLICATION_XML)
 						.get(Node.class);
 			}catch(WebApplicationException e){
-				System.out.println("Error " + e.getResponse().getStatus() + " Received from server.\n" + e.getMessage());
-				System.out.println("Source or destination nodes are not existing");
-				throw new UnknownNameException("One of src/dst or both nodes are not present in the NFFG");
+				//NOT found means node not present
+				if(e.getResponse().getStatus()==404){
+					System.out.println("Error " + e.getResponse().getStatus() + " Received from server.\n" + e.getMessage());
+					System.out.println("Source or destination nodes are not existing");
+					throw new UnknownNameException("One of src/dst or both nodes are not present in the NFFG");
+				//all other errors are mapeed as ServiceException
+				}else{
+					System.out.println("Error + " + e.getResponse().getStatus() +"unexpected error");
+					throw new ServiceException(e.getMessage());
+				}
 			}catch(Exception e){
-				System.out.println("Source or destination nodes are not existing");
-				throw new UnknownNameException("One of src/dst or both nodes are not present in the NFFG");
+				System.out.println("Error unexpected " + e.getMessage());
+				throw new ServiceException(e.getMessage());
 			
 			}
 			
-			
-			if(srcID.equals(dstID)){
-				return true;
-			}
-
 			try{
 				String requestString = baseServiceUrl + "/resource/node/" + srcID + "/paths?dst=" + dstID;
 				Paths paths = client.target(requestString)
@@ -186,6 +208,11 @@ public class ConcreteReachabilityTester implements ReachabilityTester {
 		return graphName;
 	}
 	
+	/*
+	 * This method effectively sends the nodes and links to Neo4J
+	 * Throws
+	 * ServiceException in case of communication errors with Neo4J
+	 */
 	private void extractInformationOfNffgForDB(NffgReader nffg) throws ServiceException{
 		nodeNames =new LinkedHashMap<String,Node>();
 	
